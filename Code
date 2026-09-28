@@ -1,0 +1,577 @@
+#include <iostream>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+#include <ctime>
+#include <cctype>
+#include <tuple>
+#include <limits>
+using namespace std;
+
+// Time helpers 
+time_t current_time;
+
+void get_current_time()
+{
+    current_time = time(nullptr);
+}
+
+void print_current_time()
+{
+    get_current_time();
+    tm* local_time = localtime(&current_time);
+
+    cout << "Current time: " << local_time->tm_hour << ":"
+         << local_time->tm_min << ":" << local_time->tm_sec << endl;
+    cout << "Current date: " << local_time->tm_mday << "/"
+         << (local_time->tm_mon + 1) << "/" << (local_time->tm_year + 1900) << endl;
+}
+
+//  String helpers 
+bool isConvertibleToInt(const string& str)
+{
+    try {
+        (void)stoi(str);
+        return true;
+    } catch (const exception&) {
+        return false;
+    }
+}
+
+void capital(string& a)
+{
+    for (char& c : a) c = static_cast<char>(toupper(static_cast<unsigned char>(c)));
+}
+
+bool equal_ignore_case(string a, string b)
+{
+    capital(a);
+    capital(b);
+    return a == b;
+}
+
+
+vector<string> split_words(const string& line)
+{
+    istringstream iss(line);
+    vector<string> words;
+    string w;
+    while (iss >> w) words.push_back(w);
+    return words;
+}
+
+string get_first_word(const string& a)
+{
+    auto w = split_words(a);
+    return w.empty() ? "" : w[0];
+}
+string get_second_word(const string& a)
+{
+    auto w = split_words(a);
+    return w.size() > 1 ? w[1] : "";
+}
+string get_third_word(const string& a)
+{
+    auto w = split_words(a);
+    return w.size() > 2 ? w[2] : "";
+}
+
+// even though it's the same candidate.
+bool check_file(const string& sn)
+{
+    ifstream file("signs.txt");
+    if (!file) return false;
+
+    string line;
+    while (getline(file, line))
+    {
+        if (equal_ignore_case(sn, get_first_word(line)))
+            return true;
+    }
+    return false;
+}
+
+// Person 
+class Person
+{
+    int age;
+    string cnic;
+    string province;
+    string name;
+    string f_name;
+public:
+    Person(int a = 0, string c = "", string p = "", string n = "", string fn = "")
+        : age(a < 0 ? 0 : a), cnic(move(c)), province(move(p)), name(move(n)), f_name(move(fn)) {}
+
+    // getters vote
+    int getage() const { return age; }
+    string getcnic() const { return cnic; }
+    string getprovince() const { return province; }
+    string getname() const { return name; }
+    string getf_name() const { return f_name; }
+
+    // setters vote
+    void setage(int a) { age = (a < 0) ? 0 : a; }
+    void setcnic(string c) { cnic = move(c); }
+    void setprovince(string p) { province = move(p); }
+    void setname(string n) { name = move(n); }
+    void setf_name(string n) { f_name = move(n); }
+};
+
+// Voter 
+class Voter
+{
+    Person details;
+    int seat_mna = 0;
+    int seat_mpa = 0;
+    string vote_mna;
+    string vote_mpa;
+    string phone = "123";
+public:
+    Voter() = default;
+
+    // setters vote
+    void setage(int a) { details.setage(a); }
+    void setcnic(string c) { details.setcnic(move(c)); }
+    void setprovince(string p) { details.setprovince(move(p)); }
+    void setname(string n) { details.setname(move(n)); }
+    void setfname(string f) { details.setf_name(move(f)); }
+    void set_seats(int mna, int mpa) { seat_mna = mna; seat_mpa = mpa; }
+    void set_votes(string mna, string mpa) { capital(mna); capital(mpa); vote_mna = move(mna); vote_mpa = move(mpa); }
+    void setphone(string ph) { phone = move(ph); }
+
+    // getters vote
+    int getage() const { return details.getage(); }
+    string getcnic() const { return details.getcnic(); }
+    string getprovince() const { return details.getprovince(); }
+    string getname() const { return details.getname(); }
+    string getfname() const { return details.getf_name(); }
+    int get_mna_seat() const { return seat_mna; }
+    int get_mpa_seat() const { return seat_mpa; }
+    string get_mna_vote() const { return vote_mna; }
+    string get_mpa_vote() const { return vote_mpa; }
+    string getphone() const { return phone; }
+
+    bool check_age(int a) const { return a >= 18; }
+
+    bool vote_checking(const string& cnic) const
+    {
+        ifstream check("v_cnic.txt");
+        if (!check) return false;
+        string temp;
+        while (getline(check, temp))
+            if (cnic == temp) return true;
+        return false;
+    }
+    // the vote can actually be tallied.
+    bool seat_candidate_exists_mna() const
+    {
+        ifstream file("mna.txt");
+        string data;
+        bool in_target_seat = false;
+        while (getline(file, data))
+        {
+            auto w = split_words(data);
+            if (!w.empty() && w[0] == "**Seat" && w.size() > 2)
+            {
+                in_target_seat = (stoi(w[2]) == seat_mna);
+                continue;
+            }
+            if (in_target_seat && w.size() > 1 && equal_ignore_case(w[1], vote_mna))
+                return true;
+        }
+        return false;
+    }
+
+    bool seat_candidate_exists_mpa() const
+    {
+        ifstream file("mpa.txt");
+        string data;
+        bool in_target_province = false;
+        bool in_target_seat = false;
+        while (getline(file, data))
+        {
+            auto w = split_words(data);
+            if (!w.empty() && w[0] == "***Province:" && w.size() > 1)
+            {
+                in_target_province = equal_ignore_case(w[1], details.getprovince());
+                in_target_seat = false;
+                continue;
+            }
+            if (!in_target_province) continue;
+            if (!w.empty() && w[0] == "**Seat" && w.size() > 2)
+            {
+                in_target_seat = (stoi(w[2]) == seat_mpa);
+                continue;
+            }
+            if (in_target_seat && w.size() > 1 && equal_ignore_case(w[1], vote_mpa))
+                return true;
+        }
+        return false;
+    }
+
+ 
+    void log_voted_record() const
+    {
+        get_current_time();
+        tm* lt = localtime(&current_time);
+
+        ofstream log("voted_list.txt", ios::app);
+        log << details.getcnic() << " | " << details.getname()
+            << " | " << details.getprovince()
+            << " | " << lt->tm_mday << "/" << (lt->tm_mon + 1) << "/" << (lt->tm_year + 1900)
+            << " " << lt->tm_hour << ":" << lt->tm_min << ":" << lt->tm_sec
+            << endl;
+    }
+
+    void update_in_file() const
+    {
+        ofstream file("v_details.txt", ios::app);
+     
+        file << "\n\nCNIC: " << details.getcnic() << endl;
+        file << "***MNA Seat: " << seat_mna << endl;
+        file << "MNA Vote: " << vote_mna << endl;
+        file << "Province: " << details.getprovince() << endl;
+        file << "***MPA Seat: " << seat_mpa << endl;
+        file << "MPA Vote: " << vote_mpa << endl;
+        file << "Name: " << details.getname() << endl;
+        file << "Father's Name: " << details.getf_name() << endl;
+        file << "Age: " << details.getage() << endl;
+        file << "Phone: " << phone << endl;
+
+        ofstream c_file("v_cnic.txt", ios::app);
+        c_file << details.getcnic() << endl;
+    }
+
+  // other candiate name
+    void increment_vote_mna()
+    {
+        {
+            ifstream in("mna.txt");
+            ofstream out("temp.txt");
+            string data;
+            while (getline(in, data)) out << data << "\n";
+        }
+
+        ifstream temp("temp.txt");
+        ofstream file1("mna.txt");
+        string data;
+        bool in_target_seat = false;
+        bool done = false;
+
+        while (!done && getline(temp, data))
+        {
+            file1 << data << "\n";
+            auto w = split_words(data);
+
+            if (!w.empty() && w[0] == "**Seat" && w.size() > 2)
+            {
+                in_target_seat = (stoi(w[2]) == seat_mna);
+                continue;
+            }
+            if (!in_target_seat || w.size() < 2) continue;
+
+            string candidate_name = w[1];
+            if (equal_ignore_case(candidate_name, vote_mna))
+            {
+                for (int i = 0; i < 6 && getline(temp, data); i++) file1 << data << "\n";
+                if (getline(temp, data))
+                {
+                    auto vw = split_words(data);
+                    int votes = (vw.size() > 1 ? stoi(vw[1]) : 0) + 1;
+                    file1 << (vw.empty() ? "Votes" : vw[0]) << " " << votes << "\n";
+                }
+                done = true;
+            }
+            else
+            {
+                for (int i = 0; i < 7 && getline(temp, data); i++) file1 << data << "\n";
+            }
+        }
+        while (getline(temp, data)) file1 << data << "\n";
+    }
+
+    void increment_vote_mpa()
+    {
+        {
+            ifstream in("mpa.txt");
+            ofstream out("temp.txt");
+            string data;
+            while (getline(in, data)) out << data << "\n";
+        }
+
+        ifstream temp("temp.txt");
+        ofstream file1("mpa.txt");
+        string data;
+        bool in_target_province = false;
+        bool in_target_seat = false;
+        bool done = false;
+
+        while (!done && getline(temp, data))
+        {
+            file1 << data << "\n";
+            auto w = split_words(data);
+
+            if (!w.empty() && w[0] == "***Province:" && w.size() > 1)
+            {
+                in_target_province = equal_ignore_case(w[1], details.getprovince());
+                in_target_seat = false;
+                continue;
+            }
+            if (!in_target_province) continue;
+
+            if (!w.empty() && w[0] == "**Seat" && w.size() > 2)
+            {
+                in_target_seat = (stoi(w[2]) == seat_mpa);
+                continue;
+            }
+            if (!in_target_seat || w.size() < 2) continue;
+
+            string candidate_name = w[1];
+            if (equal_ignore_case(candidate_name, vote_mpa))
+            {
+                for (int i = 0; i < 6 && getline(temp, data); i++) file1 << data << "\n";
+                if (getline(temp, data))
+                {
+                    auto vw = split_words(data);
+                    int votes = (vw.size() > 1 ? stoi(vw[1]) : 0) + 1;
+                    file1 << (vw.empty() ? "Votes" : vw[0]) << " " << votes << "\n";
+                }
+                done = true;
+            }
+            else
+            {
+                for (int i = 0; i < 7 && getline(temp, data); i++) file1 << data << "\n";
+            }
+        }
+        while (getline(temp, data)) file1 << data << "\n";
+    }
+};
+
+// Time / Date
+class Time
+{
+    int seconds = 0;
+    int minutes = 0;
+    int hours = 1;
+public:
+    Time() = default;
+
+    void setseconds(int s) { seconds = (s > 60 || s < 0) ? 0 : s; }
+    void setminutes(int m) { minutes = (m > 60 || m < 0) ? 0 : m; }
+    void sethours(int h)   { hours   = (h > 23 || h < 0) ? 0 : h; }
+
+    int getseconds() const { return seconds; }
+    int getminutes() const { return minutes; }
+    int gethours() const { return hours; }
+};
+
+class Date
+{
+    int day = 1;
+    int month = 1;
+    int year = 1990;
+    Time time;
+public:
+    Date() = default;
+
+    void setseconds(int s) { time.setseconds(s); }
+    void setminutes(int m) { time.setminutes(m); }
+    void sethours(int h) { time.sethours(h); }
+    void setday(int d)   { day   = (d < 1 || d > 31) ? 1 : d; }
+    void setmonth(int m) { month = (m < 1 || m > 12) ? 1 : m; }
+    void setyear(int y)  { year = y; }
+
+    int getseconds() const { return time.getseconds(); }
+    int getminutes() const { return time.getminutes(); }
+    int gethours() const { return time.gethours(); }
+    int getday() const { return day; }
+    int getmonth() const { return month; }
+    int getyear() const { return year; }
+
+   
+    bool start_time_checking(int y, int m, int d, int hr, int min, int sec) const
+    {
+        int sy = year, sm = month, sd = day;
+        int shr = time.gethours(), smin = time.getminutes(), ssec = time.getseconds();
+        return tie(y, m, d, hr, min, sec) >= tie(sy, sm, sd, shr, smin, ssec);
+    }
+
+    bool end_time_checking(int y, int m, int d, int hr, int min, int sec) const
+    {
+        get_current_time();
+        tm* lt = localtime(&current_time);
+        int cy = lt->tm_year + 1900, cm = lt->tm_mon + 1, cd = lt->tm_mday;
+        int chr = lt->tm_hour, cmin = lt->tm_min, csec = lt->tm_sec;
+        return tie(y, m, d, hr, min, sec) >= tie(cy, cm, cd, chr, cmin, csec);
+     
+    }
+
+    bool check() const
+    {
+        
+        return true;
+    }
+};
+
+
+void seed_files_if_missing()
+{
+    ifstream check_signs("signs.txt");
+    if (!check_signs)
+    {
+        ofstream f("signs.txt");
+        f << "CandidateA Lion\n";
+        f << "CandidateB Bat\n";
+    }
+    check_signs.close();
+
+    ifstream check_mna("mna.txt");
+    if (!check_mna)
+    {
+        ofstream f("mna.txt");
+        f << "**Seat No 1\n";
+        f << "0001 CandidateA\n";
+        for (int i = 0; i < 6; i++) f << "Detail" << i << "\n";
+        f << "Votes 0\n";
+        f << "0002 CandidateB\n";
+        for (int i = 0; i < 6; i++) f << "Detail" << i << "\n";
+        f << "Votes 0\n";
+    }
+    check_mna.close();
+
+    ifstream check_mpa("mpa.txt");
+    if (!check_mpa)
+    {
+        ofstream f("mpa.txt");
+        f << "***Province: Punjab\n";
+        f << "**Seat No 1\n";
+        f << "0001 CandidateA\n";
+        for (int i = 0; i < 6; i++) f << "Detail" << i << "\n";
+        f << "Votes 0\n";
+        f << "0002 CandidateB\n";
+        for (int i = 0; i < 6; i++) f << "Detail" << i << "\n";
+        f << "Votes 0\n";
+    }
+    check_mpa.close();
+
+  
+int read_int(const string& prompt)
+{
+    int value;
+    cout << prompt;
+    while (!(cin >> value))
+    {
+        cin.clear();
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        cout << "Please enter a number: ";
+    }
+    return value;
+}
+
+void cast_vote_flow()
+{
+    Voter voter;
+    string cnic, name, fname, province, mna_vote, mpa_vote, phone;
+    int age, seat_mna, seat_mpa;
+
+    cout << "\nEnter CNIC (no dashes): ";
+    cin >> cnic;
+
+    if (voter.vote_checking(cnic))
+    {
+        cout << "This CNIC has already voted. Access denied.\n";
+        return;
+    }
+
+    cout << "Enter Name: ";
+    cin >> name;
+    cout << "Enter Father's Name: ";
+    cin >> fname;
+    age = read_int("Enter Age: ");
+
+    if (!voter.check_age(age))
+    {
+        cout << "Voter must be 18 or older. Access denied.\n";
+        return;
+    }
+
+    cout << "Enter Province: ";
+    cin >> province;
+    cout << "Enter Phone: ";
+    cin >> phone;
+
+    voter.setcnic(cnic);
+    voter.setname(name);
+    voter.setfname(fname);
+    voter.setage(age);
+    voter.setprovince(province);
+    voter.setphone(phone);
+
+    seat_mna = read_int("Enter MNA Seat number: ");
+    seat_mpa = read_int("Enter MPA Seat number: ");
+    voter.set_seats(seat_mna, seat_mpa);
+
+    cout << "Enter MNA candidate symbol to vote for: ";
+    cin >> mna_vote;
+    if (!check_file(mna_vote))
+    {
+        cout << "Invalid candidate symbol. Vote rejected.\n";
+        return;
+    }
+
+    cout << "Enter MPA candidate symbol to vote for: ";
+    cin >> mpa_vote;
+    if (!check_file(mpa_vote))
+    {
+        cout << "Invalid candidate symbol. Vote rejected.\n";
+        return;
+    }
+
+    voter.set_votes(mna_vote, mpa_vote);
+
+    // ever counted.
+    if (!voter.seat_candidate_exists_mna())
+    {
+        cout << "No such MNA seat/candidate combination. Vote rejected — nothing recorded.\n";
+        return;
+    }
+    if (!voter.seat_candidate_exists_mpa())
+    {
+        cout << "No such MPA seat/candidate combination. Vote rejected — nothing recorded.\n";
+        return;
+    }
+
+    voter.update_in_file();      // voter + choice record
+    voter.log_voted_record();    // "who has voted" 
+    voter.increment_vote_mna();  // tallies  vote
+    voter.increment_vote_mpa();  // tallies  vote
+
+    cout << "Vote cast successfully. Thank you, " << name << ".\n";
+}
+
+int main()
+{
+    seed_files_if_missing();
+
+    int choice;
+    do
+    {
+        choice = read_int("\n===== Electronic Voting Machine =====\n1. Cast Vote\n2. Exit\nEnter choice: ");
+
+        switch (choice)
+        {
+            case 1:
+                cast_vote_flow();
+                break;
+            case 2:
+                cout << "Exiting. Goodbye.\n";
+                break;
+            default:
+                cout << "Invalid choice.\n";
+        }
+    } while (choice != 2);
+
+    return 0;
+}
